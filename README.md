@@ -1,6 +1,7 @@
 # Omnidocx
 
-Omnidocx is ruby gem that allows you to merge multiple docx (microsoft word) files into one, writing images to a docx file and making pattern replacements in the header, footer or main document content.
+Omnidocx is ruby gem that allows you to merge multiple docx (microsoft word) files into one, writing images to a docx file and making string replacements in the header, footer or main document content.
+This gem works for docx files generated from microsoft word as well as google docs.
 
 ## Installation
 
@@ -20,13 +21,19 @@ Or install it yourself as:
 
 ## To Merge Documents
 
+If you plan to have a header and footer applied to all the pages of the final document, then pass the document with header and footer as the first document in the array. Currently multiple different headers and footers are not supported.
+
+While passing documents array make sure all the documents are from the same source, i.e., either microsoft word or google docs. Passing a mix of documents created from microsoft word and google docs might throw up namespace errors. 
+
+
 ```ruby
 require 'omnidocx'
 
 # To merge multiple docx files into one, you can use the following
+# documents_to_merge is an array of documents (file paths) need to be merged and page_break is a boolean value if you want page breaks in b/w documents
 $ Omnidocx::Docx.merge_documents(documents_to_merge=[], output_document_path, page_break)
 
-#for e.g. if you had to merge two documents, just pass their entire paths in an array, if you need a page break in between documents then pass the page_break flag as true 
+# for e.g. if you had to merge two documents, just pass their entire paths in an array, if you need a page break in between documents then pass the page_break flag as true 
 $ Omnidocx::Docx.merge_documents(['tmp/doc1.docx', 'tmp/doc2.docx'], 'tmp/output_doc.docx', true)
 ```
 
@@ -38,7 +45,9 @@ require 'omnidocx'
 # images_to_write is an array of hashes, where each hash stores information about one image
 $ Omnidocx::Docx.write_images_to_doc(images_to_write=[], input_document_path, output_document_path)
 
-#Below is the information that you can pass in for a image to be written to the doc
+# Below is an example of the images_to_write array that you can pass in for images to be written to the doc
+# image path, height and width are mandatory
+
     $ images_to_write = [ {
                           :path => "tmp/image1.jpg",     #URL || local path
                           :height => 500,
@@ -55,6 +64,31 @@ $ Omnidocx::Docx.write_images_to_doc(images_to_write=[], input_document_path, ou
                         ]
 
 ```
+
+## For String Replacements
+
+There are three different methods that can be used for string replacements
+
+```ruby
+require 'omnidocx'
+
+# replacement_hash is a hash with keys present in the document that are to be replaced with their corresponding values
+
+# For document content, you can use the following
+$ Omnidocx::Docx.replace_doc_content(replacement_hash={}, input_document_path, output_document_path)
+
+# For header content, you can use the following
+$ Omnidocx::Docx.replace_header_content(replacement_hash={}, input_document_path, output_document_path)
+
+# For footer content, you can use the following
+$ Omnidocx::Docx.replace_footer_content(replacement_hash={}, input_document_path, output_document_path)
+
+# Below is an example of how replacement_hash can be constructed 
+$ replacement_hash = { "first_name" => "John", "last_name" => "Doe"}
+
+```
+
+Will be adding test specs soon.
 
 ## Development
 
