@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["nagori.parth@gmail.com"]
 
   spec.summary       = %q{A gem to merge docx files, write images to docx and other utilities.}
-  spec.description   = %q{A gem that allows to merge multiple docx (microsoft word) files into one, writing images to a docx file and making string replacements in the header, footer or main document content.}
+  spec.description   = %q{A gem that allows to merge multiple docx (microsoft word) files into one, write images to a docx file and make string replacements in the header, footer or main document content.}
   spec.homepage      = "https://github.com/parthnagori/omnidocx"
   spec.license       = "MIT"
 
