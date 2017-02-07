@@ -1,8 +1,6 @@
 # Omnidocx
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/omnidocx`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+Omnidocx is ruby gem that allows you to merge multiple docx (microsoft word) files into one, writing images to a docx file and making pattern replacements in the header, footer or main document content.
 
 ## Installation
 
@@ -20,9 +18,43 @@ Or install it yourself as:
 
     $ gem install omnidocx
 
-## Usage
+## To Merge Documents
 
-TODO: Write usage instructions here
+```ruby
+require 'omnidocx'
+
+# To merge multiple docx files into one, you can use the following
+$ Omnidocx::Docx.merge_documents(documents_to_merge=[], output_document_path, page_break)
+
+#for e.g. if you had to merge two documents, just pass their entire paths in an array, if you need a page break in between documents then pass the page_break flag as true 
+$ Omnidocx::Docx.merge_documents(['tmp/doc1.docx', 'tmp/doc2.docx'], 'tmp/output_doc.docx', true)
+```
+
+## To Write Images to a Document
+```ruby
+require 'omnidocx'
+
+# To write images to a document, you can use the following
+# images_to_write is an array of hashes, where each hash stores information about one image
+$ Omnidocx::Docx.write_images_to_doc(images_to_write=[], input_document_path, output_document_path)
+
+#Below is the information that you can pass in for a image to be written to the doc
+    $ images_to_write = [ {
+                          :path => "tmp/image1.jpg",     #URL || local path
+                          :height => 500,
+                          :width => 500,
+                          :hdpi => 115,       #optional
+                          :vdpi => 115        #optional
+                          },
+                          :path => "https://xyz.com/abc.jpeg",    #URL || local path
+                          :height => 800,
+                          :width => 500,
+                          :hdpi => 115,       #optional
+                          :vdpi => 115        #optional
+                          }
+                        ]
+
+```
 
 ## Development
 
@@ -32,7 +64,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/omnidocx. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [Contributor Covenant](http://contributor-covenant.org) code of conduct.
+Bug reports and pull requests are welcome on GitHub at https://github.com/parthnagori/omnidocx. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [Contributor Covenant](http://contributor-covenant.org) code of conduct.
 
 
 ## License

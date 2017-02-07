@@ -21,6 +21,8 @@ module Omnidocx
 
     EMUSPERINCH = 914400
     EMUSPERCM = 360000
+    HORIZONTAL_DPI = 115
+    VERTICAL_DPI = 117
 
     NAMESPACES = {
       "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
@@ -108,9 +110,12 @@ module Omnidocx
             new_rel_node["Target"] = "media/image#{cnt}.#{extension}"
             @rel_doc.at('Relationships').add_child(new_rel_node)      #adding a new relationship node to the relationships xml
             
+            hdpi = img[:hdpi] || HORIZONTAL_DPI
+            vdpi = img[:vdpi] || VERTICAL_DPI
+
             #calculating the width and height of the image in EMUs, the format accepted by docx files
-            widthEmus = (img[:width].to_i / img[:hdpi].to_i * EMUSPERINCH)
-            heightEmus = (img[:height].to_i / img[:vdpi].to_i * EMUSPERINCH)
+            widthEmus = (img[:width].to_i / hdpi.to_i * EMUSPERINCH)
+            heightEmus = (img[:height].to_i / vdpi.to_i * EMUSPERINCH)
 
             #creating a new drawing element with info like rid, height, width,etc.
             @image_element_xml = Nokogiri::XML IMAGE_ELEMENT
