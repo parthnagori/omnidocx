@@ -94,11 +94,12 @@ module Omnidocx
 
           #if image path is readable
           if !data.empty?
-            extension = File.extname(img[:path]).split(".").last
+            img_url_no_params = img[:path].gsub(/\?.*/,'')
+            extension = File.extname(img_url_no_params).split(".").last
 
             if !media_content_type_hash.keys.include?(extension.split(".").last)
               #making an entry for a new media type
-              media_content_type_hash["#{extension}"] = MIME::Types.type_for(img[:path])[0].to_s
+              media_content_type_hash["#{extension}"] = MIME::Types.type_for(img_url_no_params)[0].to_s
             end
     
             zos.put_next_entry("word/media/image#{cnt}.#{extension}")
@@ -535,5 +536,6 @@ module Omnidocx
       #moving the temporary docx file to the final_path specified by the user
       FileUtils.mv(temp_file.path, final_path)            
     end
+
   end
 end
