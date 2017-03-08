@@ -537,5 +537,42 @@ module Omnidocx
       FileUtils.mv(temp_file.path, final_path)            
     end
 
+    def self.remove_formatting_from_doc(input_doc_path, final_path)
+      zip_file = Zip::File.new(input_doc_path)
+      cont = zip_file.read(DOCUMENT_FILE_PATH)
+      @doc_xml = Nokogiri::XML cont
+
+      @doc_xml.xpath(".//w:p").each do |p_node|
+        str = ""
+        p_node.xpath(".//w:t").each do |text_node|
+          str+= text_node.text
+        end
+        p_node.xpath(".//w:r").each_with_index do |n,index|
+          if index == 0
+            n.xpath(".//w:t").last.content = str
+          end
+          if index > 0
+            n.remove
+          end
+        end
+      end
+
+      temp_file = Tempfile.new('docxedit-')
+
+      Zip::OutputStream.open(temp_file.path) do |zos|
+        zip_file.entries.each do |e|
+          unless e.name == DOCUMENT_FILE_PATH
+            zos.put_next_entry(e.name)  
+            zos.print e.get_input_stream.read
+          end
+        end
+        #writing the updated document content xml to the new zip
+        zos.put_next_entry DOCUMENT_FILE_PATH
+        zos.print @doc_xml.to_xml
+      end
+
+      FileUtils.mv(temp_file.path, final_path)
+    end
+
   end
 end
