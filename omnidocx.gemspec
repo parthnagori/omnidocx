@@ -31,6 +31,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency 'nokogiri', '~> 1.6'
+  spec.add_dependency 'mime-types', '~> 3.1'
   spec.add_runtime_dependency 'rubyzip', '~> 1.1', '>= 1.1.6'
 
   spec.add_development_dependency "bundler", "~> 1.13"
