@@ -176,8 +176,9 @@ module Omnidocx
 
     def self.merge_documents(documents_to_merge=[], final_path, page_break)
       temp_file = Tempfile.new('docxedit-')
+      documents_to_merge_count = documents_to_merge.count
 
-      if documents_to_merge.count < 2
+      if documents_to_merge_count < 2
         return "Pass atleast two documents to be merged"   #minimum two documents required to merge
       end
 
@@ -387,6 +388,7 @@ module Omnidocx
 
           #updting the id and rid values for every drawing element in the document XML with the new counters
           doc_content.xpath("//w:drawing").each do |dr_node|
+            byebug
             blip = dr_node.xpath(".//a:blip", NAMESPACES).last
             next if blip.nil?
             i = rid_hash["doc#{doc_cnt}"][blip.attributes["embed"].value]
@@ -396,18 +398,18 @@ module Omnidocx
             docPr_id+=1
           end
 
-
           if doc_cnt > 0
-            w_p_nodes = doc_content.xpath("//w:p")
-            #pulling out the <w:p> elements fromt the document body to be appended to the main document's body
-            body_nodes = doc_content.xpath('//w:body').children[0..doc_content.xpath('//w:body').children.count-2]
+            #pulling out the <w:p> elements from the document body to be appended to the main document's body
+            body_nodes = doc_content.xpath('//w:body').children
+            body_nodes = body_nodes[0..body_nodes.count-2]
 
-            #adding a page break between documents being merged
-            if doc_cnt > 1 && page_break
-              @main_body.children.last.add_previous_sibling('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
-            end
             #appending the body_nodes to main document's body
             @main_body.children.last.add_previous_sibling(body_nodes.to_xml)
+          end
+
+          #adding a page break after each documents being merged
+          if page_break && doc_cnt < documents_to_merge_count - 1
+            @main_body.children.last.add_previous_sibling('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
           end
 
           doc_cnt+=1
