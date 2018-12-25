@@ -187,7 +187,6 @@ module Omnidocx
       @main_document_content = @main_document_zip.read(DOCUMENT_FILE_PATH)
       @main_document_xml = Nokogiri::XML @main_document_content
       @main_body = @main_document_xml.xpath("//w:body")
-      @rel_nodes = ""
       @rel_doc = ""
       @cont_type_doc = ""
       @style_doc = ""
@@ -215,15 +214,18 @@ module Omnidocx
       additional_cont_type_entries = []
 
 
-      @main_document_zip.entries.each do |e|
-        if e.name == RELATIONSHIP_FILE_PATH
-          @in_stream = e.get_input_stream.read
-          @rel_doc = Nokogiri::XML @in_stream        #Relationship XML
-          @rel_nodes = @rel_doc.css "Relationship"
-        end
-        if e.name == CONTENT_TYPES_FILE
-          in_stream = e.get_input_stream.read
-          @cont_type_doc = Nokogiri::XML in_stream       #Content types XML to be updated later on with the additional media type info
+      @main_document_zip.entries.each do |zip_entrie|
+        in_stream = zip_entrie.get_input_stream.read
+
+        #Relationship XML
+        @rel_doc = Nokogiri::XML(in_stream) if zip_entrie.name == RELATIONSHIP_FILE_PATH
+
+        #Styles XML to be updated later on with the additional tables info
+        @style_doc = Nokogiri::XML(in_stream) if zip_entrie.name == STYLES_FILE_PATH
+
+        #Content types XML to be updated later on with the additional media type info
+        if zip_entrie.name == CONTENT_TYPES_FILE
+          @cont_type_doc = Nokogiri::XML in_stream
           default_nodes = @cont_type_doc.css "Default"
           override_nodes = @cont_type_doc.css "Override"
           default_nodes.each do |node|
@@ -232,10 +234,6 @@ module Omnidocx
           override_nodes.each do |node|
             override_partnames << node["PartName"]
           end
-        end
-        if e.name == STYLES_FILE_PATH
-          in_stream = e.get_input_stream.read
-          @style_doc = Nokogiri::XML in_stream      #Styles XML to be updated later on with the additional tables info
         end
       end
 
@@ -330,7 +328,7 @@ module Omnidocx
           if doc_cnt == 0
             zip_file.entries.each do |e|
               if e.name == RELATIONSHIP_FILE_PATH
-                @rel_nodes.each do |node|
+                @rel_doc.css("Relationship").each do |node|
                   if node.values.to_s.include?("image")
                     i = media_hash["doc#{doc_cnt}"]["#{node['Target']}".gsub("media/","")]
                     target_val = node["Target"].gsub(/image[0-9]*./,"image#{i}.")
@@ -388,20 +386,21 @@ module Omnidocx
 
           #updting the id and rid values for every drawing element in the document XML with the new counters
           doc_content.xpath("//w:drawing").each do |dr_node|
-            byebug
-            blip = dr_node.xpath(".//a:blip", NAMESPACES).last
-            next if blip.nil?
-            i = rid_hash["doc#{doc_cnt}"][blip.attributes["embed"].value]
-            blip.attributes["embed"].value = blip.attributes["embed"].value.gsub(/[0-9]+/,i)
-            docPr = dr_node.xpath(".//wp:docPr").last
-            docPr["id"] = #{docPr_id}
-            docPr_id+=1
+            docPr_node = dr_node.xpath(".//wp:docPr").last
+            docPr_node['id'] = docPr_id.to_s
+            docPr_id += 1
+
+            blip_node = dr_node.xpath(".//a:blip", NAMESPACES).last
+            # not all <w:drawing> are images and only image has <a:blip>
+            next if blip_node.nil?
+            embed_attr = blip_node.attributes["embed"].value
+            i = rid_hash["doc#{doc_cnt}"][embed_attr]
+            blip_node.attributes["embed"].value = embed_attr.gsub(/[0-9]+/, i)
           end
 
           if doc_cnt > 0
-            #pulling out the <w:p> elements from the document body to be appended to the main document's body
-            body_nodes = doc_content.xpath('//w:body').children
-            body_nodes = body_nodes[0..body_nodes.count-2]
+            #pulling out the <w:sectPr> element from the document body to be appended to the main document's body
+            body_nodes = doc_content.xpath('//w:body').children[0..-2]
 
             #appending the body_nodes to main document's body
             @main_body.children.last.add_previous_sibling(body_nodes.to_xml)
@@ -412,7 +411,7 @@ module Omnidocx
             @main_body.children.last.add_previous_sibling('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
           end
 
-          doc_cnt+=1
+          doc_cnt += 1
         end
 
         #writing the updated styles XML to the new zip
