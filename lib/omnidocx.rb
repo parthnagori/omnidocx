@@ -174,7 +174,7 @@ module Omnidocx
       FileUtils.mv(temp_file.path, final_path)
     end
 
-    def self.merge_documents(documents_to_merge=[], final_path, page_break)
+    def self.merge_documents(documents_to_merge = [], final_path, page_break)
       temp_file = Tempfile.new('docxedit-')
       documents_to_merge_count = documents_to_merge.count
 
@@ -253,7 +253,7 @@ module Omnidocx
               hf_xml = Nokogiri::XML hf_content
               hf_xml.css("Relationship").each do |rel_node|
                 #media file names in header & footer need not be changed as they will be picked from the first document only and not the subsequent documents, so no chance of duplication
-                head_foot_media["doc#{doc_cnt}"] << rel_node["Target"].gsub("media/","")
+                head_foot_media["doc#{doc_cnt}"] << rel_node["Target"].gsub("media/", "")
               end
             end
             if e.name == CONTENT_TYPES_FILE
@@ -284,15 +284,15 @@ module Omnidocx
           zip_file.entries.each do |e|
             unless e.name == DOCUMENT_FILE_PATH || [RELATIONSHIP_FILE_PATH, CONTENT_TYPES_FILE, STYLES_FILE_PATH].include?(e.name)
               if e.name.include?("word/media/image")
-                if !head_foot_media["doc#{doc_cnt}"].include?(e.name.gsub("word/media/",""))
+                if !head_foot_media["doc#{doc_cnt}"].include?(e.name.gsub("word/media/", ""))
                   #renaming media files with a higher counter to avoid duplicaiton in case multiple documents have images present
-                  e_name = e.name.gsub(/image[0-9]*./,"image#{cnt}.")
+                  e_name = e.name.gsub(/image[0-9]*./, "image#{cnt}.")
                   #writing the media file back to the new zip with the new name
                   zos.put_next_entry(e_name)
                   zos.print e.get_input_stream.read
                   #storing the old media file name to new media file name to mapping in the media hash
-                  media_hash["doc#{doc_cnt}"][e.name.gsub("word/media/","")] = cnt
-                  cnt+=1
+                  media_hash["doc#{doc_cnt}"][e.name.gsub("word/media/", "")] = cnt
+                  cnt += 1
                 else
                   #writing the media files present in the header and footer as their names are not needed to be changed
                   zos.put_next_entry(e.name)
@@ -320,66 +320,48 @@ module Omnidocx
             tblStyle = tbl_node.xpath('.//w:tblStyle').last
 
             table_hash["doc#{doc_cnt}"]["#{tblStyle.attributes['val'].value}"] = tbl_cnt
-            tblStyle.attributes['val'].value = tblStyle.attributes['val'].value.gsub(/[0-9]+/,"#{tbl_cnt}")
-            tbl_cnt+=1
+            tblStyle.attributes['val'].value = tblStyle.attributes['val'].value.gsub(/[0-9]+/, tbl_cnt.to_s)
+            tbl_cnt += 1
           end
 
-          #updating the relationship ids with the new media file names in the relationships XML
-          if doc_cnt == 0
-            zip_file.entries.each do |e|
-              if e.name == RELATIONSHIP_FILE_PATH
-                @rel_doc.css("Relationship").each do |node|
-                  if node.values.to_s.include?("image")
-                    i = media_hash["doc#{doc_cnt}"]["#{node['Target']}".gsub("media/","")]
-                    target_val = node["Target"].gsub(/image[0-9]*./,"image#{i}.")
+          zip_file.entries.each do |e|
+            #updating the relationship ids with the new media file names in the relationships XML
+            if e.name == RELATIONSHIP_FILE_PATH
+              rel_xml = doc_cnt == 0 ? @rel_doc : Nokogiri::XML(e.get_input_stream.read)
+
+              rel_xml.css("Relationship").each do |node|
+                if node.values.to_s.include?("image")
+                  i = media_hash["doc#{doc_cnt}"]["#{node['Target']}".gsub("media/", "")]
+                  target_val = node["Target"].gsub(/image[0-9]*./, "image#{i}.")
+                  rid_hash["doc#{doc_cnt}"]["#{node['Id']}"] = i.to_s
+
+                  id_attr = node.attributes["Id"]
+                  new_id = id_attr.value.gsub(/[0-9]+/, i.to_s)
+                  if doc_cnt == 0
                     node["Target"] = target_val
-                    rid_hash["doc#{doc_cnt}"]["#{node['Id']}"] = "#{i}"
-                    node.attributes["Id"].value = node.attributes["Id"].value.gsub(/[0-9]+/,"#{i}")
-                  end
-                end
-              end
-              #adding the table style information to the styles xml, if any tables present in the document being merged
-              if e.name == STYLES_FILE_PATH
-                table_nodes = @style_doc.xpath('//w:style').select{|n| n.attributes["type"].value == "table"}
-                table_nodes.each do |table_node|
-                  tab_val = table_hash["doc#{doc_cnt}"]["#{table_node.attributes['styleId'].value}"]
-                  table_node.attributes['styleId'].value = table_node.attributes['styleId'].value.gsub(/[0-9]+/,"#{tab_val}")
-                end
-              end
-            end
-          else
-            zip_file.entries.each do |e|
-              if e.name == RELATIONSHIP_FILE_PATH
-                input_stream = e.get_input_stream.read
-                rel_xml = Nokogiri::XML input_stream
-                rel_xml_nodes = rel_xml.css "Relationship"
-                rel_xml_nodes.each do |node|
-                  if node.values.to_s.include?("image")
-                    i = media_hash["doc#{doc_cnt}"]["#{node['Target']}".gsub("media/","")]
-                    target_val = node["Target"].gsub(/image[0-9]*./,"image#{i}.")
-                    rid_hash["doc#{doc_cnt}"]["#{node['Id']}"] = "#{i}"
-
-                    new_rel_node = Nokogiri::XML::Node.new("Relationship", @rel_doc)
-                    new_rel_node["Id"] = node.attributes["Id"].value.gsub(/[0-9]+/,"#{i}")
-                    new_rel_node["Type"] = node["Type"]
-                    new_rel_node["Target"] = target_val
-
-                    #adding the extra relationship nodes for the media files from the subsequent documents (apart from first) to the relationship XML
+                    id_attr.value = new_id
+                  else
+                    # adding the extra relationship nodes for the media files from the subsequent documents (apart from first) to the relationship XML
+                    new_rel_node = "<Relationship Id=#{new_id} Type=#{node["Type"]} Target=#{target_val} />"
                     @rel_doc.at('Relationships').add_child(new_rel_node)
                   end
                 end
               end
+            end
 
-              if e.name == STYLES_FILE_PATH
-                input_stream = e.get_input_stream.read
-                style_xml = Nokogiri::XML input_stream
-                table_nodes = style_xml.xpath("//w:style").select{|n| n.attributes["type"].value == "table" && n.attributes["styleId"].value != "TableNormal"}
-                table_nodes.each do |table_node|
-                  tab_val = table_hash["doc#{doc_cnt}"]["#{table_node.attributes['styleId'].value}"]
-                  table_node.attributes['styleId'].value = table_node.attributes['styleId'].value.gsub(/[0-9]+/,"#{tab_val}")
-                  #adding extra table style nodes to the styles xml, if any tables present in the document being merged
-                  @style_doc.xpath("//w:styles").children.last.add_next_sibling(table_node.to_xml)
-                end
+            #adding the table style information to the styles xml, if any tables present in the document being merged
+            if e.name == STYLES_FILE_PATH
+              style_xml = doc_cnt == 0 ? @style_doc : Nokogiri::XML(e.get_input_stream.read)
+              table_nodes = style_xml.xpath('//w:style').select{ |n| n.attributes["type"].value == "table" }
+              table_nodes = table_nodes.select{ |n| n.attributes["styleId"].value != "TableNormal" } if doc_cnt !== 0
+
+              table_nodes.each do |table_node|
+                style_id_attr = table_node.attributes['styleId']
+                tab_val = table_hash["doc#{doc_cnt}"][style_id_attr.value.to_s]
+                style_id_attr.value = style_id_attr.value.gsub(/[0-9]+/, tab_val.to_s)
+
+                #adding extra table style nodes to the styles xml, if any tables present in the document being merged
+                @style_doc.xpath("//w:styles").children.last.add_next_sibling(table_node.to_xml) if doc_cnt !== 0
               end
             end
           end
@@ -393,9 +375,9 @@ module Omnidocx
             blip_node = dr_node.xpath(".//a:blip", NAMESPACES).last
             # not all <w:drawing> are images and only image has <a:blip>
             next if blip_node.nil?
-            embed_attr = blip_node.attributes["embed"].value
-            i = rid_hash["doc#{doc_cnt}"][embed_attr]
-            blip_node.attributes["embed"].value = embed_attr.gsub(/[0-9]+/, i)
+            embed_attr = blip_node.attributes["embed"]
+            i = rid_hash["doc#{doc_cnt}"][embed_attr.value]
+            embed_attr.value = embed_attr.value.gsub(/[0-9]+/, i)
           end
 
           if doc_cnt > 0
