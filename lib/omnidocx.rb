@@ -184,8 +184,7 @@ module Omnidocx
 
       #first document to which the others will be appended (header/footer will be picked from this document)
       @main_document_zip = Zip::File.new(documents_to_merge.first)
-      @main_document_content = @main_document_zip.read(DOCUMENT_FILE_PATH)
-      @main_document_xml = Nokogiri::XML @main_document_content
+      @main_document_xml = Nokogiri::XML(@main_document_zip.read(DOCUMENT_FILE_PATH))
       @main_body = @main_document_xml.xpath("//w:body")
       @rel_doc = ""
       @cont_type_doc = ""
@@ -213,7 +212,7 @@ module Omnidocx
       #array to store information about additional content types other than the ones present in the first(main) document
       additional_cont_type_entries = []
 
-
+      # prepare initial set of data from first document
       @main_document_zip.entries.each do |zip_entrie|
         in_stream = zip_entrie.get_input_stream.read
 
@@ -228,15 +227,10 @@ module Omnidocx
           @cont_type_doc = Nokogiri::XML in_stream
           default_nodes = @cont_type_doc.css "Default"
           override_nodes = @cont_type_doc.css "Override"
-          default_nodes.each do |node|
-            default_extensions << node["Extension"]
-          end
-          override_nodes.each do |node|
-            override_partnames << node["PartName"]
-          end
+          default_nodes.each { |node| default_extensions << node["Extension"] }
+          override_nodes.each { |node| override_partnames << node["PartName"] }
         end
       end
-
 
       #opening a new zip for the final document
       Zip::OutputStream.open(temp_file.path) do |zos|
@@ -249,16 +243,14 @@ module Omnidocx
 
           zip_file.entries.each do |e|
             if [HEADER_RELS_FILE_PATH, FOOTER_RELS_FILE_PATH].include?(e.name)
-              hf_content = e.get_input_stream.read
-              hf_xml = Nokogiri::XML hf_content
+              hf_xml = Nokogiri::XML(e.get_input_stream.read)
               hf_xml.css("Relationship").each do |rel_node|
                 #media file names in header & footer need not be changed as they will be picked from the first document only and not the subsequent documents, so no chance of duplication
                 head_foot_media["doc#{doc_cnt}"] << rel_node["Target"].gsub("media/", "")
               end
             end
             if e.name == CONTENT_TYPES_FILE
-              cont_types = e.get_input_stream.read
-              cont_type_xml = Nokogiri::XML cont_types
+              cont_type_xml = Nokogiri::XML(e.get_input_stream.read)
               default_nodes = cont_type_xml.css "Default"
               override_nodes = cont_type_xml.css "Override"
 
@@ -271,7 +263,7 @@ module Omnidocx
               end
 
               override_nodes.each do |node|
-                #checking if override content tpye infoalready present in the content types xml extracted from the first document
+                #checking if override content type info already present in the content types xml extracted from the first document
                 if !override_partnames.include?(node["PartName"]) && !node.to_xml.empty?
                   additional_cont_type_entries << node
                   override_partnames << node["Partname"]       #extra content type info to be added to the content types XML
@@ -280,24 +272,20 @@ module Omnidocx
             end
           end
 
-
           zip_file.entries.each do |e|
             unless e.name == DOCUMENT_FILE_PATH || [RELATIONSHIP_FILE_PATH, CONTENT_TYPES_FILE, STYLES_FILE_PATH].include?(e.name)
               if e.name.include?("word/media/image")
-                if !head_foot_media["doc#{doc_cnt}"].include?(e.name.gsub("word/media/", ""))
-                  #renaming media files with a higher counter to avoid duplicaiton in case multiple documents have images present
+                # media files from header & footer from first document shouldn't be changed
+                if head_foot_media["doc#{doc_cnt}"].include?(e.name.gsub("word/media/", ""))
+                  e_name = e.name
+                else
                   e_name = e.name.gsub(/image[0-9]*./, "image#{cnt}.")
-                  #writing the media file back to the new zip with the new name
-                  zos.put_next_entry(e_name)
-                  zos.print e.get_input_stream.read
                   #storing the old media file name to new media file name to mapping in the media hash
                   media_hash["doc#{doc_cnt}"][e.name.gsub("word/media/", "")] = cnt
                   cnt += 1
-                else
-                  #writing the media files present in the header and footer as their names are not needed to be changed
-                  zos.put_next_entry(e.name)
-                  zos.print e.get_input_stream.read
                 end
+                zos.put_next_entry(e_name)
+                zos.print e.get_input_stream.read
               else
                 #writing the files not needed to be edited back to the new zip (only from the first document, so as to avoid duplication)
                 if doc_cnt == 0
@@ -308,19 +296,12 @@ module Omnidocx
             end
           end
 
-          if doc_cnt == 0
-            doc_content = @main_document_xml      #first document's content XML
-          else
-            document_content = zip_file.read(DOCUMENT_FILE_PATH)
-            doc_content = Nokogiri::XML document_content      #subsequent documents' content XML
-          end
-
           #updating the stlye ids in the table elements present in the document content XML
+          doc_content = doc_cnt == 0 ? @main_body : Nokogiri::XML(zip_file.read(DOCUMENT_FILE_PATH))
           doc_content.xpath("//w:tbl").each do |tbl_node|
-            tblStyle = tbl_node.xpath('.//w:tblStyle').last
-
-            table_hash["doc#{doc_cnt}"]["#{tblStyle.attributes['val'].value}"] = tbl_cnt
-            tblStyle.attributes['val'].value = tblStyle.attributes['val'].value.gsub(/[0-9]+/, tbl_cnt.to_s)
+            val_attr = tbl_node.xpath('.//w:tblStyle').last.attributes['val']
+            table_hash["doc#{doc_cnt}"][val_attr.value.to_s] = tbl_cnt
+            val_attr.value = val_attr.value.gsub(/[0-9]+/, tbl_cnt.to_s)
             tbl_cnt += 1
           end
 
@@ -330,21 +311,21 @@ module Omnidocx
               rel_xml = doc_cnt == 0 ? @rel_doc : Nokogiri::XML(e.get_input_stream.read)
 
               rel_xml.css("Relationship").each do |node|
-                if node.values.to_s.include?("image")
-                  i = media_hash["doc#{doc_cnt}"]["#{node['Target']}".gsub("media/", "")]
-                  target_val = node["Target"].gsub(/image[0-9]*./, "image#{i}.")
-                  rid_hash["doc#{doc_cnt}"]["#{node['Id']}"] = i.to_s
+                next unless node.values.to_s.include?("image")
 
-                  id_attr = node.attributes["Id"]
-                  new_id = id_attr.value.gsub(/[0-9]+/, i.to_s)
-                  if doc_cnt == 0
-                    node["Target"] = target_val
-                    id_attr.value = new_id
-                  else
-                    # adding the extra relationship nodes for the media files from the subsequent documents (apart from first) to the relationship XML
-                    new_rel_node = "<Relationship Id=#{new_id} Type=#{node["Type"]} Target=#{target_val} />"
-                    @rel_doc.at('Relationships').add_child(new_rel_node)
-                  end
+                i = media_hash["doc#{doc_cnt}"][node['Target'].to_s.gsub("media/", "")]
+                target_val = node["Target"].gsub(/image[0-9]*./, "image#{i}.")
+                rid_hash["doc#{doc_cnt}"][node['Id'].to_s] = i.to_s
+
+                id_attr = node.attributes["Id"]
+                new_id = id_attr.value.gsub(/[0-9]+/, i.to_s)
+                if doc_cnt == 0
+                  node["Target"] = target_val
+                  id_attr.value = new_id
+                else
+                  # adding the extra relationship nodes for the media files to the relationship XML
+                  new_rel_node = "<Relationship Id=#{new_id} Type=#{node["Type"]} Target=#{target_val} />"
+                  @rel_doc.at('Relationships').add_child(new_rel_node)
                 end
               end
             end
@@ -353,7 +334,7 @@ module Omnidocx
             if e.name == STYLES_FILE_PATH
               style_xml = doc_cnt == 0 ? @style_doc : Nokogiri::XML(e.get_input_stream.read)
               table_nodes = style_xml.xpath('//w:style').select{ |n| n.attributes["type"].value == "table" }
-              table_nodes = table_nodes.select{ |n| n.attributes["styleId"].value != "TableNormal" } if doc_cnt !== 0
+              table_nodes = table_nodes.select{ |n| n.attributes["styleId"].value != "TableNormal" } if doc_cnt != 0
 
               table_nodes.each do |table_node|
                 style_id_attr = table_node.attributes['styleId']
@@ -361,7 +342,7 @@ module Omnidocx
                 style_id_attr.value = style_id_attr.value.gsub(/[0-9]+/, tab_val.to_s)
 
                 #adding extra table style nodes to the styles xml, if any tables present in the document being merged
-                @style_doc.xpath("//w:styles").children.last.add_next_sibling(table_node.to_xml) if doc_cnt !== 0
+                @style_doc.xpath("//w:styles").children.last.add_next_sibling(table_node.to_xml) if doc_cnt != 0
               end
             end
           end
