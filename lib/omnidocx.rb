@@ -299,10 +299,13 @@ module Omnidocx
           #updating the stlye ids in the table elements present in the document content XML
           doc_content = doc_cnt == 0 ? @main_body : Nokogiri::XML(zip_file.read(DOCUMENT_FILE_PATH))
           doc_content.xpath("//w:tbl").each do |tbl_node|
-            val_attr = tbl_node.xpath('.//w:tblStyle').last.attributes['val']
-            table_hash["doc#{doc_cnt}"][val_attr.value.to_s] = tbl_cnt
-            val_attr.value = val_attr.value.gsub(/[0-9]+/, tbl_cnt.to_s)
-            tbl_cnt += 1
+            style_last = tbl_node.xpath('.//w:tblStyle').last
+            unless style_last.nil?
+              val_attr = style_last.attributes['val']
+              table_hash["doc#{doc_cnt}"][val_attr.value.to_s] = tbl_cnt
+              val_attr.value = val_attr.value.gsub(/[0-9]+/, tbl_cnt.to_s)
+              tbl_cnt += 1
+            end
           end
 
           zip_file.entries.each do |e|
