@@ -327,7 +327,10 @@ module Omnidocx
                   id_attr.value = new_id
                 else
                   # adding the extra relationship nodes for the media files to the relationship XML
-                  new_rel_node = "<Relationship Id=#{new_id} Type=#{node["Type"]} Target=#{target_val} />"
+                  new_rel_node = Nokogiri::XML::Node.new("Relationship", @rel_doc)
+                  new_rel_node["Id"] = new_id
+                  new_rel_node["Type"] = node["Type"]
+                  new_rel_node["Target"] = target_val
                   @rel_doc.at('Relationships').add_child(new_rel_node)
                 end
               end
